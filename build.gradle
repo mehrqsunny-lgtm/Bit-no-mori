@@ -1,0 +1,108 @@
+plugins {
+    id('java')
+}
+    java {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+group = "org.example"
+version = "1.0-SNAPSHOT"
+
+repositories {
+    flatDir {
+        dirs 'libs'
+    }
+    mavenCentral()
+}
+
+project.ext.lwjglVersion = "3.2.3"
+project.ext.jomlVersion = "1.9.23"
+project.ext.lwjglNatives = "natives-windows"
+project.ext.imguiVersion = '1.81.0'
+project.ext.javafxVersion = '17.0.8'
+
+def osName = System.getProperty('os.name').toLowerCase()
+def javafxPlatform = 'linux'
+if (osName.contains('win')) javafxPlatform = 'win'
+else if (osName.contains('mac')) javafxPlatform = 'mac'
+
+dependencies {
+    // Box2D
+    implementation 'org.jbox2d:jbox2d-library:2.2.1.1'
+
+    // JUnit
+    testImplementation 'junit:junit:4.13.2'
+
+    // GSON
+    implementation 'com.google.code.gson:gson:2.8.6'
+
+    // ImGUI stuff
+    implementation "io.github.spair:imgui-java-app:$imguiVersion"
+
+    // LWJGL stuff
+    implementation platform("org.lwjgl:lwjgl-bom:$lwjglVersion")
+
+    implementation "org.lwjgl:lwjgl"
+    implementation "org.lwjgl:lwjgl-assimp"
+    implementation "org.lwjgl:lwjgl-glfw"
+    implementation "org.lwjgl:lwjgl-nfd"
+    implementation "org.lwjgl:lwjgl-openal"
+    implementation "org.lwjgl:lwjgl-opengl"
+    implementation "org.lwjgl:lwjgl-stb"
+    runtimeOnly "org.lwjgl:lwjgl::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-assimp::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-glfw::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-nfd::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-openal::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-opengl::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-stb::$lwjglNatives"
+    implementation "org.joml:joml:${jomlVersion}"
+    // JavaFX (for ImGuiLayer font handling if required)
+    implementation "org.openjfx:javafx-controls:${project.ext.javafxVersion}"
+    implementation "org.openjfx:javafx-fxml:${project.ext.javafxVersion}"
+    runtimeOnly "org.openjfx:javafx-controls:${project.ext.javafxVersion}:${javafxPlatform}"
+    runtimeOnly "org.openjfx:javafx-fxml:${project.ext.javafxVersion}:${javafxPlatform}"
+}
+
+jar {
+    manifest {
+        attributes (
+                'Class-Path': configurations.runtimeClasspath.collect { it.getName() }.join(' '),
+                'Main-Class': 'org.example.Main'
+        )
+    }
+}
+
+tasks.register('copyAssets', Copy) {
+    from "assets"
+    into "${layout.buildDirectory.get().asFile}/libs/assets"
+
+    from "level.txt"
+    into "${layout.buildDirectory.get().asFile}/libs"
+}
+
+tasks.register('fatJar', Jar) {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    manifest.from jar.manifest
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    } {
+        exclude "META-INF/*.SF"
+        exclude "META-INF/*.DSA"
+        exclude "META-INF/*.RSA"
+    }
+    // include project assets and level file into the fat JAR so runtime finds them on classpath
+    from('assets') {
+        into 'assets'
+    }
+    from('level.txt') {
+        into ''
+    }
+    with jar
+    dependsOn(tasks.named('copyAssets'))
+}
+
+artifacts {
+    archives tasks.named('fatJar')
+}
